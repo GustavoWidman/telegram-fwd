@@ -4,8 +4,6 @@ services:
         image: telegram-fwd
         container_name: telegram-fwd
         restart: unless-stopped
-        ports:
-            - 47787:47787
         volumes:
             - type: bind
               source: ./config.toml
@@ -13,3 +11,8 @@ services:
             - type: bind
               source: ./session.bin
               target: /session.bin
+
+networks:
+    default:
+        name: nginx
+        external: true

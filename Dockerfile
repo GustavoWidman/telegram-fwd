@@ -12,6 +12,7 @@ ENV SYSROOT=/dummy
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./src ./src
+COPY ./templates ./templates
 
 # dump the environment to a .env file (dotenvy_macro will read this file)
 # RUN echo "VARIABLE_1=$VARIABLE_1" > .env
@@ -22,7 +23,7 @@ RUN --mount=type=cache,target=/target/ \
 	--mount=type=cache,target=/usr/local/cargo/git/db \
 	--mount=type=cache,target=/usr/local/cargo/registry/ \
 	cargo build --release && \
-	cp /target/release/chatbot /app
+	cp /target/release/telegram-fwd /app
 
 FROM scratch
 COPY --from=builder /app /app
