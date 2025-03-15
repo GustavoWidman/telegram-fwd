@@ -1,0 +1,15 @@
+[package]
+name = "telegram-fwd"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.97"
+easy-config-store = "0.1.0"
+grammers-client = "0.7.0"
+serde = { version = "1.0.219", features = ["derive"] }
+tokio = { version = "1.44.1", features = ["full"] }
+actix-web = "4"
+async-stream = "0.3.6"
+futures = "0.3.31"
+serde_json = "1.0.140"
