@@ -9,6 +9,8 @@ pub struct Config {
     pub phone: String,
     pub session_file_path: PathBuf,
     pub password: String,
+    pub server_host: String,
+    pub server_port: u16,
 }
 
 impl Default for Config {
@@ -20,6 +22,8 @@ impl Default for Config {
             phone: String::new(),
             session_file_path: "session.bin".into(),
             password: "password".into(),
+            server_host: "0.0.0.0".into(),
+            server_port: 8080,
         }
     }
 }

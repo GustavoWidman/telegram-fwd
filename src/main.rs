@@ -101,7 +101,10 @@ async fn main() -> std::io::Result<()> {
     let files = Arc::new(files);
     let config = Arc::new(config);
 
-    log::info!("Starting server on port 8080");
+    let server_host = config.server_host.clone();
+    let server_port = config.server_port;
+
+    log::info!("Starting server on {}:{}", server_host, server_port);
 
     HttpServer::new(move || {
         App::new()
@@ -115,7 +118,7 @@ async fn main() -> std::io::Result<()> {
             .service(serve::download)
             .service(serve::login)
     })
-    .bind(("0.0.0.0", 8080))?
+    .bind((server_host, server_port))?
     .run()
     .await
 }

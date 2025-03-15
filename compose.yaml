@@ -1,0 +1,15 @@
+services:
+    server:
+        build: .
+        image: telegram-fwd
+        container_name: telegram-fwd
+        restart: unless-stopped
+        ports:
+            - 47787:47787
+        volumes:
+            - type: bind
+              source: ./config.toml
+              target: /config.toml
+            - type: bind
+              source: ./session.bin
+              target: /session.bin
