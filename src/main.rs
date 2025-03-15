@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use actix_web::{App, HttpServer, web};
+use actix_web::{App, HttpServer, middleware::Logger, web};
 use easy_config_store::ConfigStore;
 use grammers_client::{
     Client, Config, InitParams,
@@ -10,12 +10,13 @@ use grammers_client::{
 
 mod config;
 mod file;
+mod logging;
 mod serve;
 mod utils;
 
 fn ask_code_to_user() -> String {
     let mut code = String::new();
-    println!("Enter login code: ");
+    log::info!("Enter login code: ");
     std::io::stdin().read_line(&mut code).unwrap();
     code
 }
@@ -23,10 +24,13 @@ fn ask_code_to_user() -> String {
 pub struct AppState {
     client: Arc<Client>,
     files: Arc<Vec<file::DownloadFile>>,
+    config: Arc<ConfigStore<config::Config>>,
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    logging::Logger::init(None);
+
     let config: ConfigStore<config::Config> = ConfigStore::read("config.toml")
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
@@ -53,13 +57,13 @@ async fn main() -> std::io::Result<()> {
             .await
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
         let code = ask_code_to_user();
-        println!("Signing in...");
+        log::info!("Signing in...");
         client
             .sign_in(&token, &code)
             .await
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
         client.session().save_to_file(&config.session_file_path)?;
-        println!("Signed in!");
+        log::info!("Signed in!");
     }
 
     let mut dialogs = client.iter_dialogs();
@@ -95,17 +99,23 @@ async fn main() -> std::io::Result<()> {
 
     let client = Arc::new(client);
     let files = Arc::new(files);
+    let config = Arc::new(config);
+
+    log::info!("Starting server on port 8080");
 
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .app_data(web::Data::new(AppState {
+                config: config.clone(),
                 client: client.clone(),
                 files: files.clone(),
             }))
             .service(serve::index)
             .service(serve::download)
+            .service(serve::login)
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("0.0.0.0", 8080))?
     .run()
     .await
 }

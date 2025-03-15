@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>error</title>
+	</head>
+	<body>
+		<h1>error</h1>
+		{{ error }}
+		<h2>Redirecting to home in 5 seconds...</h2>
+	</body>
+	<script>
+		setTimeout(function () {
+			window.location.href = "/";
+		}, 5000);
+	</script>
+</html>

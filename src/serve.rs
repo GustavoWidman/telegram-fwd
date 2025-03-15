@@ -1,6 +1,9 @@
-use actix_web::{Error, HttpResponse, get, web};
+use actix_web::{
+    Error, HttpRequest, HttpResponse, get,
+    http::header::{self, ContentType, TryIntoHeaderValue},
+    post, web,
+};
 use serde::Deserialize;
-use serde_json::json;
 
 use crate::AppState;
 
@@ -9,11 +12,31 @@ struct Query {
     file: usize,
 }
 
+#[derive(Deserialize)]
+struct Login {
+    password: String,
+}
+
 #[get("/download/{file}")]
 async fn download(
+    request: HttpRequest,
     query: web::Path<Query>,
     data: web::Data<AppState>,
 ) -> Result<HttpResponse, Error> {
+    if !request
+        .cookie("password")
+        .and_then(|cookie| {
+            cookie
+                .value()
+                .parse::<String>()
+                .ok()
+                .map(|v| v == data.config.password)
+        })
+        .map_or(false, |v| v)
+    {
+        return login_index().await;
+    }
+
     let files = data.files.clone();
     let file: Option<crate::file::DownloadFile> = files.get(query.file).cloned();
 
@@ -32,15 +55,36 @@ async fn download(
                 .content_type("application/octet-stream")
                 .streaming(stream)
         }
-        None => HttpResponse::NotFound().json(json! {{
-            "error": "File not found"
-        }}),
+        None => {
+            let error_html = include_str!("../templates/error.html");
+            HttpResponse::Ok()
+                .append_header((header::CONTENT_TYPE, ContentType::html().try_into_value()?))
+                .body(error_html.replace("{{ error }}", "File not found"))
+        }
     });
 }
 
 #[get("/")]
-async fn index(data: web::Data<AppState>) -> Result<HttpResponse, Error> {
-    let index = include_str!("../templates/index.html");
+async fn index(request: HttpRequest, data: web::Data<AppState>) -> Result<HttpResponse, Error> {
+    if request
+        .cookie("password")
+        .and_then(|cookie| {
+            cookie
+                .value()
+                .parse::<String>()
+                .ok()
+                .map(|v| v == data.config.password)
+        })
+        .map_or(false, |v| v)
+    {
+        return main(data).await;
+    } else {
+        login_index().await
+    }
+}
+
+async fn main(data: web::Data<AppState>) -> Result<HttpResponse, Error> {
+    let html = include_str!("../templates/index.html");
 
     let files = data
         .files
@@ -60,5 +104,35 @@ async fn index(data: web::Data<AppState>) -> Result<HttpResponse, Error> {
         .collect::<Vec<String>>()
         .join("\n");
 
-    Ok(HttpResponse::Ok().body(index.replace("{{ files }}", &files)))
+    Ok(HttpResponse::Ok()
+        .append_header((header::CONTENT_TYPE, ContentType::html().try_into_value()?))
+        .body(html.replace("{{ files }}", &files)))
+}
+
+async fn login_index() -> Result<HttpResponse, Error> {
+    let html = include_str!("../templates/password.html");
+
+    Ok(HttpResponse::Ok()
+        .append_header((header::CONTENT_TYPE, ContentType::html().try_into_value()?))
+        .body(html))
+}
+
+#[post("/login")]
+async fn login(form: web::Form<Login>, data: web::Data<AppState>) -> Result<HttpResponse, Error> {
+    let password = form.password.clone();
+
+    if password == data.config.password {
+        let redirect_html = include_str!("../templates/redirect.html");
+
+        Ok(HttpResponse::Ok()
+            .cookie(actix_web::cookie::Cookie::new("password", password))
+            .append_header((header::CONTENT_TYPE, ContentType::html().try_into_value()?))
+            .body(redirect_html.replace("{{ url }}", "/")))
+    } else {
+        let error_html = include_str!("../templates/error.html");
+
+        Ok(HttpResponse::Ok()
+            .append_header((header::CONTENT_TYPE, ContentType::html().try_into_value()?))
+            .body(error_html.replace("{{ error }}", "Wrong password")))
+    }
 }
