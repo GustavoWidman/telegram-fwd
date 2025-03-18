@@ -10,6 +10,7 @@ use crate::AppState;
 #[derive(Deserialize)]
 struct Query {
     file: usize,
+    hash: u64,
 }
 
 #[derive(Deserialize)]
@@ -17,7 +18,7 @@ struct Login {
     password: String,
 }
 
-#[get("/download/{file}")]
+#[get("/download/{file}/{hash}")]
 async fn download(
     request: HttpRequest,
     query: web::Path<Query>,
@@ -37,7 +38,12 @@ async fn download(
         return login_index().await;
     }
 
-    let files = data.files.clone();
+    let (files, hash) = data.client.get_files().await?;
+
+    if query.hash != hash {
+        return Ok(HttpResponse::NotFound().finish());
+    }
+
     let file: Option<crate::file::DownloadFile> = files.get(query.file).cloned();
 
     return Ok(match file {
@@ -86,14 +92,16 @@ async fn index(request: HttpRequest, data: web::Data<AppState>) -> Result<HttpRe
 async fn main(data: web::Data<AppState>) -> Result<HttpResponse, Error> {
     let html = include_str!("../templates/index.html");
 
-    let files = data
-        .files
+    let (files, hash) = data.client.get_files().await?;
+
+    let files = files
         .iter()
         .enumerate()
         .map(|(i, file)| {
             format!(
-                "<a href=\"/download/{}\">{}</a><br>",
+                "<a href=\"/download/{}/{}\">{}</a><br>",
                 i,
+                hash,
                 format!(
                     "{} ({})",
                     file.name,

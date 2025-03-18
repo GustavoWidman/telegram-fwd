@@ -2,12 +2,9 @@ use std::sync::Arc;
 
 use actix_web::{App, HttpServer, middleware::Logger, web};
 use easy_config_store::ConfigStore;
-use grammers_client::{
-    Client, Config, InitParams,
-    session::Session,
-    types::{Chat, Media},
-};
+use grammers_client::{Client, Config, InitParams, session::Session};
 
+mod client;
 mod config;
 mod file;
 mod logging;
@@ -22,8 +19,7 @@ fn ask_code_to_user() -> String {
 }
 
 pub struct AppState {
-    client: Arc<Client>,
-    files: Arc<Vec<file::DownloadFile>>,
+    client: Arc<client::ClientWrapper>,
     config: Arc<ConfigStore<config::Config>>,
 }
 
@@ -66,39 +62,7 @@ async fn main() -> std::io::Result<()> {
         log::info!("Signed in!");
     }
 
-    let mut dialogs = client.iter_dialogs();
-    let mut desired_chats: Vec<Chat> = vec![];
-    while let Some(dialog) = dialogs
-        .next()
-        .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?
-    {
-        let chat = dialog.chat().clone();
-        if chat.name().contains("Ubuntu Maniax") {
-            desired_chats.push(chat);
-        }
-    }
-
-    let mut files: Vec<file::DownloadFile> = vec![];
-    for chat in desired_chats {
-        let mut messages = client.iter_messages(&chat);
-        while let Some(message) = messages
-            .next()
-            .await
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?
-        {
-            if let Some(Media::Document(document)) = message.media() {
-                files.push(file::DownloadFile::new(
-                    document.name().to_string(),
-                    document.size(),
-                    document,
-                ));
-            }
-        }
-    }
-
-    let client = Arc::new(client);
-    let files = Arc::new(files);
+    let client = Arc::new(client::ClientWrapper::new(client).await?);
     let config = Arc::new(config);
 
     let server_host = config.server_host.clone();
@@ -112,7 +76,6 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(AppState {
                 config: config.clone(),
                 client: client.clone(),
-                files: files.clone(),
             }))
             .service(serve::index)
             .service(serve::download)
