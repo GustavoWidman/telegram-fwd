@@ -38,10 +38,17 @@ async fn download(
         return login_index().await;
     }
 
-    let (files, hash) = data.client.get_files().await?;
+    let (files, hash) = data
+        .client
+        .get_files()
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
 
     if query.hash != hash {
-        return Ok(HttpResponse::NotFound().finish());
+        let error_html = include_str!("../templates/error.html");
+        return Ok(HttpResponse::Ok()
+            .append_header((header::CONTENT_TYPE, ContentType::html().try_into_value()?))
+            .body(error_html.replace("{{ error }}", "Cache invalid, please refresh the page")));
     }
 
     let file: Option<crate::file::DownloadFile> = files.get(query.file).cloned();
@@ -50,7 +57,10 @@ async fn download(
         Some(file) => {
             let name = file.name.clone();
             let size = file.file_size.to_string();
-            let stream = file.download_stream(data.client.clone());
+            let client = data.client.clone();
+            let stream = crate::client::ClientWrapper::download_file(client, file)
+                .await
+                .map_err(actix_web::error::ErrorInternalServerError)?;
 
             HttpResponse::Ok()
                 .append_header((
@@ -92,7 +102,11 @@ async fn index(request: HttpRequest, data: web::Data<AppState>) -> Result<HttpRe
 async fn main(data: web::Data<AppState>) -> Result<HttpResponse, Error> {
     let html = include_str!("../templates/index.html");
 
-    let (files, hash) = data.client.get_files().await?;
+    let (files, hash) = data
+        .client
+        .get_files()
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
 
     let files = files
         .iter()

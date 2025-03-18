@@ -2,12 +2,10 @@ use actix_web::web::Bytes;
 use async_stream::try_stream;
 use futures::Stream;
 use grammers_client::{
-    InvocationError,
+    Client, InvocationError,
     types::{Downloadable, Media, media::Document},
 };
 use std::sync::Arc;
-
-use crate::client::ClientWrapper;
 
 #[derive(Clone)]
 pub struct DownloadFile {
@@ -38,9 +36,9 @@ impl DownloadFile {
         }
     }
 
-    pub fn download_stream(
+    pub async fn download_stream(
         self,
-        client: Arc<ClientWrapper>,
+        client: Arc<Client>,
     ) -> impl Stream<Item = Result<Bytes, InvocationError>> {
         try_stream! {
             let mut download = client.iter_download(&self.downloadable);
