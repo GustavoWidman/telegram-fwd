@@ -43,6 +43,7 @@ async fn main() -> std::io::Result<()> {
             }))
             .service(serve::index)
             .service(serve::download)
+            .service(serve::health_check)
             .service(serve::login)
     })
     .bind((server_host, server_port))?

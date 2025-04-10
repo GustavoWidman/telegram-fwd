@@ -1,5 +1,5 @@
 use actix_web::{
-    Error, HttpRequest, HttpResponse, get,
+    Error, HttpRequest, HttpResponse, get, head,
     http::header::{self, ContentType, TryIntoHeaderValue},
     post, web,
 };
@@ -97,6 +97,11 @@ async fn index(request: HttpRequest, data: web::Data<AppState>) -> Result<HttpRe
     } else {
         login_index().await
     }
+}
+
+#[head("/")]
+async fn health_check() -> Result<HttpResponse, Error> {
+    Ok(HttpResponse::Ok().finish())
 }
 
 async fn main(data: web::Data<AppState>) -> Result<HttpResponse, Error> {
