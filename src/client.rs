@@ -1,7 +1,7 @@
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
 use actix_web::web::Bytes;
@@ -12,6 +12,7 @@ use grammers_client::{
     session::Session,
     types::{Chat, Media},
 };
+use tokio::sync::RwLock;
 
 use crate::{config, file};
 
@@ -48,23 +49,23 @@ impl ClientWrapper {
             },
         })
         .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
 
         if !client
             .is_authorized()
             .await
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?
+            .map_err(|e| std::io::Error::other(e.to_string()))?
         {
             let token = client
                 .request_login_code(&config.phone)
                 .await
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
             let code = ask_code_to_user();
             log::info!("Signing in...");
             client
                 .sign_in(&token, &code)
                 .await
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
             client.session().save_to_file(&config.session_file_path)?;
             log::info!("Signed in!");
         }
@@ -80,7 +81,7 @@ impl ClientWrapper {
         while let Some(dialog) = dialogs
             .next()
             .await
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?
+            .map_err(|e| std::io::Error::other(e.to_string()))?
         {
             let chat = dialog.chat().clone();
             if chat.name().contains("Ubuntu Maniax") {
@@ -125,10 +126,7 @@ impl ClientWrapper {
     }
 
     async fn get_cached_files(&self) -> anyhow::Result<Option<(Vec<file::DownloadFile>, u64)>> {
-        let cached_files = self
-            .cached_files
-            .read()
-            .map_err(|e| anyhow::anyhow!("Failed to acquire read lock for cached files: {}", e))?;
+        let cached_files = self.cached_files.read().await;
 
         match cached_files.as_ref() {
             Some(cache) => {
@@ -143,17 +141,14 @@ impl ClientWrapper {
                 cache.hash(&mut hasher);
                 let hash = hasher.finish();
 
-                return Ok(Some((cache.files.clone(), hash)));
+                Ok(Some((cache.files.clone(), hash)))
             }
             None => Ok(None),
         }
     }
 
     async fn update_cache(&self, files: Vec<file::DownloadFile>) -> anyhow::Result<u64> {
-        let mut cache = self
-            .cached_files
-            .write()
-            .map_err(|e| anyhow::anyhow!("Failed to acquire write lock: {}", e))?;
+        let mut cache = self.cached_files.write().await;
 
         let entry = Cache {
             time: chrono::Utc::now(),
@@ -170,10 +165,7 @@ impl ClientWrapper {
     }
 
     async fn get_client(&self) -> anyhow::Result<Arc<Client>> {
-        let client = self
-            .client
-            .read()
-            .map_err(|e| anyhow::anyhow!("Failed to acquire read lock for client: {}", e))?;
+        let client = self.client.read().await;
 
         match client.as_ref() {
             Some(client) => Ok(client.clone()),
@@ -182,10 +174,7 @@ impl ClientWrapper {
     }
 
     async fn reset_client(&self) -> anyhow::Result<Arc<Client>> {
-        let mut client = self
-            .client
-            .write()
-            .map_err(|e| anyhow::anyhow!("Failed to acquire write lock: {}", e))?;
+        let mut client = self.client.write().await;
 
         let new_client = Arc::new(ClientWrapper::login(self.config.clone()).await?);
         client.replace(new_client.clone());

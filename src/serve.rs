@@ -33,7 +33,7 @@ async fn download(
                 .ok()
                 .map(|v| v == data.config.password)
         })
-        .map_or(false, |v| v)
+        .is_some_and(|v| v)
     {
         return login_index().await;
     }
@@ -53,7 +53,7 @@ async fn download(
 
     let file: Option<crate::file::DownloadFile> = files.get(query.file).cloned();
 
-    return Ok(match file {
+    Ok(match file {
         Some(file) => {
             let name = file.name.clone();
             let size = file.file_size.to_string();
@@ -77,7 +77,7 @@ async fn download(
                 .append_header((header::CONTENT_TYPE, ContentType::html().try_into_value()?))
                 .body(error_html.replace("{{ error }}", "File not found"))
         }
-    });
+    })
 }
 
 #[get("/")]
@@ -91,9 +91,9 @@ async fn index(request: HttpRequest, data: web::Data<AppState>) -> Result<HttpRe
                 .ok()
                 .map(|v| v == data.config.password)
         })
-        .map_or(false, |v| v)
+        .is_some_and(|v| v)
     {
-        return main(data).await;
+        main(data).await
     } else {
         login_index().await
     }
@@ -118,14 +118,11 @@ async fn main(data: web::Data<AppState>) -> Result<HttpResponse, Error> {
         .enumerate()
         .map(|(i, file)| {
             format!(
-                "<a href=\"/download/{}/{}\">{}</a><br>",
+                "<a href=\"/download/{}/{}\">{} ({})</a><br>",
                 i,
                 hash,
-                format!(
-                    "{} ({})",
-                    file.name,
-                    crate::utils::bytes_to_pretty_string(file.file_size)
-                )
+                file.name,
+                crate::utils::bytes_to_pretty_string(file.file_size)
             )
         })
         .collect::<Vec<String>>()
