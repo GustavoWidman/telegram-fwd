@@ -36,9 +36,9 @@ impl CologStyle for CustomLevelTokens {
 pub struct Logger;
 
 impl Logger {
-    pub fn init(level: Option<LevelFilter>) {
+    pub fn init(level: LevelFilter) {
         Builder::new()
-            .filter(None, level.unwrap_or(LevelFilter::Info))
+            .filter(None, level)
             .target(env_logger::Target::Stdout)
             .format(colog::formatter(CustomLevelTokens))
             .write_style(env_logger::WriteStyle::Always)

@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use actix_web::{App, HttpServer, middleware::Logger, web};
+use clap::Parser;
 use easy_config_store::ConfigStore;
 
+mod cli;
 mod client;
 mod config;
 mod file;
@@ -17,16 +19,17 @@ pub struct AppState {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    logging::Logger::init(None);
+    let args = cli::Args::parse();
+    logging::Logger::init(args.verbosity);
 
-    let config: ConfigStore<config::Config> = ConfigStore::read("config.toml")
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    let config: ConfigStore<config::Config> =
+        ConfigStore::read(args.config).map_err(|e| std::io::Error::other(e.to_string()))?;
 
     let config = Arc::new(config);
     let client = Arc::new(
         client::ClientWrapper::new(config.clone())
             .await
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?,
+            .map_err(|e| std::io::Error::other(e.to_string()))?,
     );
 
     let server_host = config.server_host.clone();
