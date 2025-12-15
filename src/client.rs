@@ -5,16 +5,15 @@ use std::{
 };
 
 use actix_web::web::Bytes;
-use easy_config_store::ConfigStore;
 use futures::Stream;
 use grammers_client::{
-    Client, Config, InitParams, InvocationError,
+    Client, InitParams, InvocationError,
     session::Session,
     types::{Chat, Media},
 };
 use tokio::sync::RwLock;
 
-use crate::{config, file};
+use crate::{config::Config, file};
 
 #[derive(Hash)]
 pub struct Cache {
@@ -23,7 +22,7 @@ pub struct Cache {
 }
 
 pub struct ClientWrapper {
-    pub config: Arc<ConfigStore<config::Config>>,
+    pub config: Config,
     desired_chats: Vec<Chat>,
     cached_files: RwLock<Option<Cache>>,
     client: RwLock<Option<Arc<Client>>>,
@@ -37,8 +36,8 @@ fn ask_code_to_user() -> String {
 }
 
 impl ClientWrapper {
-    pub async fn login(config: Arc<ConfigStore<config::Config>>) -> std::io::Result<Client> {
-        let client = Client::connect(Config {
+    pub async fn login(config: Config) -> std::io::Result<Client> {
+        let client = Client::connect(grammers_client::Config {
             session: Session::load_file_or_create(&config.session_file_path)?,
             api_id: config.api_id,
             api_hash: config.api_hash.clone(),
@@ -73,7 +72,7 @@ impl ClientWrapper {
         Ok(client)
     }
 
-    pub async fn new(config: Arc<ConfigStore<config::Config>>) -> anyhow::Result<Self> {
+    pub async fn new(config: Config) -> eyre::Result<Self> {
         let client = Self::login(config.clone()).await?;
 
         let mut dialogs = client.iter_dialogs();
@@ -97,7 +96,7 @@ impl ClientWrapper {
         })
     }
 
-    pub async fn get_files(&self) -> anyhow::Result<(Vec<file::DownloadFile>, u64)> {
+    pub async fn get_files(&self) -> eyre::Result<(Vec<file::DownloadFile>, u64)> {
         let cache = self.get_cached_files().await?;
 
         if let Some((files, hash)) = cache {
@@ -125,7 +124,7 @@ impl ClientWrapper {
         Ok((files, hash))
     }
 
-    async fn get_cached_files(&self) -> anyhow::Result<Option<(Vec<file::DownloadFile>, u64)>> {
+    async fn get_cached_files(&self) -> eyre::Result<Option<(Vec<file::DownloadFile>, u64)>> {
         let cached_files = self.cached_files.read().await;
 
         match cached_files.as_ref() {
@@ -147,7 +146,7 @@ impl ClientWrapper {
         }
     }
 
-    async fn update_cache(&self, files: Vec<file::DownloadFile>) -> anyhow::Result<u64> {
+    async fn update_cache(&self, files: Vec<file::DownloadFile>) -> eyre::Result<u64> {
         let mut cache = self.cached_files.write().await;
 
         let entry = Cache {
@@ -164,7 +163,7 @@ impl ClientWrapper {
         Ok(hash)
     }
 
-    async fn get_client(&self) -> anyhow::Result<Arc<Client>> {
+    async fn get_client(&self) -> eyre::Result<Arc<Client>> {
         let client = self.client.read().await;
 
         match client.as_ref() {
@@ -173,7 +172,7 @@ impl ClientWrapper {
         }
     }
 
-    async fn reset_client(&self) -> anyhow::Result<Arc<Client>> {
+    async fn reset_client(&self) -> eyre::Result<Arc<Client>> {
         let mut client = self.client.write().await;
 
         let new_client = Arc::new(ClientWrapper::login(self.config.clone()).await?);
@@ -185,7 +184,7 @@ impl ClientWrapper {
     pub async fn download_file(
         wrapper: Arc<Self>,
         file: file::DownloadFile,
-    ) -> anyhow::Result<impl Stream<Item = Result<Bytes, InvocationError>>> {
+    ) -> eyre::Result<impl Stream<Item = Result<Bytes, InvocationError>>> {
         let client = wrapper.get_client().await?;
 
         Ok(file.download_stream(client).await)

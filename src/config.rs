@@ -1,9 +1,25 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
+use easy_config_store::ConfigStore;
+use eyre::Result;
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
+pub type Config = Arc<ConfigStore<ConfigInner>>;
+pub fn config(path: PathBuf) -> Result<Config> {
+    let config = ConfigStore::<ConfigInner>::read(path, "settings".to_string())?;
+
+    info!("config parsing successful");
+    debug!(
+        "loaded configuration:\n{}",
+        toml::to_string_pretty(&*config)?
+    );
+
+    Ok(config.arc())
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct Config {
+pub struct ConfigInner {
     pub api_id: i32,
     pub api_hash: String,
     pub phone: String,
@@ -13,7 +29,7 @@ pub struct Config {
     pub server_port: u16,
 }
 
-impl Default for Config {
+impl Default for ConfigInner {
     fn default() -> Self {
         log::info!("Created default config, please edit it.");
         Self {
